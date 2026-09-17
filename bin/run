@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# run [-f] file.cpp  — compile and execute. Safe build by default; -f = fast build.
+set -euo pipefail
+
+CXX=${CP_CXX:-clang++}
+INC="$HOME/cp/include"
+FAST=0
+
+while [[ ${1:-} == -* ]]; do
+    case $1 in
+        -f) FAST=1; shift ;;
+        -h) echo "usage: run [-f] file.cpp"; exit 0 ;;
+        *)  echo "run: unknown option $1" >&2; exit 2 ;;
+    esac
+done
+
+SRC=${1:-}
+[[ -n $SRC ]] || { echo "usage: run [-f] file.cpp" >&2; exit 2; }
+[[ -f $SRC ]] || { echo "run: no such file: $SRC" >&2; exit 2; }
+
+OUT="${TMPDIR:-/tmp}/cpbin"
+mkdir -p "$OUT"
+BIN="$OUT/$(basename "${SRC%.*}")"
+
+COMMON=(-std=c++20 -I "$INC" -Wall -Wextra -Wshadow)
+
+if (( FAST )); then
+    "$CXX" "${COMMON[@]}" -O2 "$SRC" -o "$BIN"
+else
+    "$CXX" "${COMMON[@]}" -DLOCAL \
+        -D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_DEBUG \
+        -g -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+        "$SRC" -o "$BIN"
+fi
+
+exec "$BIN"
